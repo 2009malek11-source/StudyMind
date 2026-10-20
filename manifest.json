@@ -1,0 +1,24 @@
+{
+  "id": "./",
+  "name": "StudyMind",
+  "short_name": "StudyMind",
+  "description": "صوّر صفحات كتابك واحصل على شرح وملخص واختبارات ومساعد ذكي — Learn · Understand · Grow",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html#/home",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#0b5fe8",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "درس جديد", "short_name": "ارفع", "url": "./index.html#/study", "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "المراجعة الذكية", "short_name": "مراجعة", "url": "./index.html#/review", "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}
