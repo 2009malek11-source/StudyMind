@@ -61,7 +61,7 @@ const NAV = [
   { id: 'home', icon: 'home', key: 'nav.home', hash: '#/home' },
   { id: 'library', icon: 'layers', key: 'nav.library', hash: '#/library' },
   { id: 'study', icon: 'plus', key: 'nav.study', hash: '#/study', main: true },
-  { id: 'progress', icon: 'chart', key: 'nav.progress', hash: '#/progress' },
+  { id: 'tutor', icon: 'sparkles', key: 'nav.tutor', hash: '#/tutor' },
   { id: 'settings', icon: 'sliders', key: 'nav.settings', hash: '#/settings' }
 ];
 let sideCollapsed = false; try { sideCollapsed = localStorage.getItem('sm_side') === '1'; } catch (e) { /* */ }
@@ -90,6 +90,7 @@ function buildLayout() {
     h('label', { class: 'side-search' }, icon('search', 18), h('input', { type: 'search', class: 'side-search-in', placeholder: t('lib.search'), 'aria-label': t('lib.search'), onkeydown: e => { if (e.key === 'Enter') { Prefs.set('q', e.target.value); go('#/library'); } } })),
     h('nav', { class: 'side-nav' },
       NAV.map(n => h('a', { class: 'side-item', href: n.hash, dataset: { id: n.id }, title: t(n.key) }, icon(n.icon, 20), h('span', null, t(n.key)))),
+      h('a', { class: 'side-item', href: '#/progress', dataset: { id: 'progress' }, title: t('nav.progress') }, icon('chart', 20), h('span', null, t('nav.progress'))),
       h('a', { class: 'side-item', href: '#/review', dataset: { id: 'review' }, title: t('nav.review') }, icon('cards', 20), h('span', null, t('nav.review')))),
     h('div', { class: 'side-foot' },
       h('button', { class: 'side-item', type: 'button', onclick: openShare, title: t('u.share') }, icon('share', 20), h('span', null, t('u.share'))),
@@ -108,7 +109,7 @@ function accountLabel() { return Store.auth && Store.auth.user ? (Store.auth.use
 function syncAccountUi() { const el = $('#side-acct-t'); if (el) el.textContent = accountLabel(); syncCloudDot(); }
 function syncCloudDot() {
   const d = $('#cloud-dot'); if (!d) return;
-  const on = !!(Store.auth && API.enabled());
+  const on = !!(Store.auth);
   d.classList.toggle('hidden', !on); d.dataset.s = Cloud.status;
   d.title = t('cloud.' + Cloud.status);
 }
@@ -124,7 +125,7 @@ function route() {
   const page = parts[0] || 'home';
   const studying = page === 'lesson' || page === 'review';
   App.studying = studying; if (studying) Track.start(); else Track.stop();
-  const navId = ['home', 'library', 'study', 'progress', 'settings', 'review'].includes(page) ? page : page === 'lesson' ? 'library' : 'home';
+  const navId = ['home', 'library', 'study', 'progress', 'settings', 'review', 'tutor'].includes(page) ? page : page === 'lesson' ? 'library' : 'home';
   $$('[data-id]').forEach(a => { const on = a.dataset.id === navId; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   view.classList.remove('enter'); void view.offsetWidth; view.classList.add('enter');
   switch (page) {
@@ -133,6 +134,7 @@ function route() {
     case 'progress': viewProgress(view); break;
     case 'settings': viewSettings(view, parts[1]); break;
     case 'review': viewReview(view); break;
+    case 'tutor': viewTutor(view); break;
     case 'lesson': viewLesson(view, parts[1], parts[2]); break;
     default: viewHome(view);
   }
@@ -171,7 +173,7 @@ function viewHome(root) {
       h('div', { class: 'row wrap gap' },
         h('a', { class: 'btn primary lg', href: '#/study' }, icon('upload', 20), t('home.upload')),
         last ? h('a', { class: 'btn lg', href: '#/lesson/' + last.id }, icon('book', 20), t('home.continue')) : h('button', { class: 'btn lg', type: 'button', onclick: () => { const l = createDemoLesson(); go('#/lesson/' + l.id); } }, icon('sparkles', 20), t('study.demo')))),
-    !Store.auth ? h('div', { class: 'notice' }, icon('cloud', 20), h('div', null, h('strong', null, t('home.guest.t')), ' ', t('home.guest.b')), h('button', { class: 'btn sm primary', type: 'button', onclick: openAccount }, t(API.enabled() ? 'acct.register' : 'home.guest.go'))) : null,
+    !Store.auth ? h('div', { class: 'notice' }, icon('cloud', 20), h('div', null, h('strong', null, t('home.guest.t')), ' ', t('home.guest.b')), h('button', { class: 'btn sm primary', type: 'button', onclick: openAccount }, t('acct.register'))) : null,
     dueCount ? h('a', { class: 'notice ok-n', href: '#/review' }, icon('cards', 20), h('div', null, h('strong', null, t('home.due', { n: dueCount })), ' ', t('home.due.sub')), icon(document.documentElement.dir === 'rtl' ? 'chevL' : 'chevR', 18)) : null,
     h('div', { class: 'tiles' },
       statTile('flame', Store.streak(), t('home.streak'), 'warm'), statTile('file', S.stats.pages, t('home.pages')),
@@ -234,7 +236,7 @@ function viewProgress(root) {
 }
 
 /* ───────────── المشاركة ───────────── */
-function shareUrl() { return (Prefs.get('shareUrl') || CONFIG.SHARE_URL || (location.origin + location.pathname.replace(/index\.html$/, ''))).trim(); }
+function shareUrl() { return CONFIG.SHARE_URL; }
 function openShare() {
   const url = shareUrl();
   const msg = t('share.msg');
@@ -271,20 +273,14 @@ function openAccount() {
     });
     return;
   }
-  if (!API.enabled()) {
-    openModal({
-      title: t('acct.title'), body: h('div', { class: 'stack' }, h('p', null, t('acct.nobackend')), h('p', { class: 'muted sm' }, t('acct.local'))),
-      actions: [{ label: t('u.close'), kind: 'ghost' }, { label: t('study.nb.setup'), kind: 'primary', onClick: () => go('#/settings/server') }]
-    });
-    return;
-  }
   authModal('login');
 }
 
 async function doLogout() {
   let ok = true;
-  if (API.enabled() && navigator.onLine) { try { await Cloud.sync(); } catch (e) { ok = false; } } else if (Cloud.isDirty()) ok = false;
+  if (navigator.onLine) { try { await Cloud.sync(); } catch (e) { ok = false; } } else if (Cloud.isDirty()) ok = false;
   if (!(await confirmBox(t('acct.logout.t'), ok ? t('acct.logout.b') : t('acct.logout.unsynced'), t('acct.logout'), true))) return;
+  await Auth.signOut();
   await Store.setAuth(null);
   Store.state = defaultState();
   try { await Vault.save('state', Store.state); localStorage.removeItem('sm_dirty'); } catch (e) { /* */ }
@@ -296,35 +292,50 @@ function authModal(mode) {
   let busy = false;
   const name = h('input', { class: 'input', type: 'text', autocomplete: 'name', maxlength: '60', placeholder: t('acct.name'), 'aria-label': t('acct.name') });
   const email = h('input', { class: 'input', type: 'email', autocomplete: mode === 'login' ? 'username' : 'email', inputmode: 'email', maxlength: '120', placeholder: t('acct.email'), 'aria-label': t('acct.email'), dir: 'ltr' });
-  const pass = h('input', { class: 'input', type: 'password', autocomplete: mode === 'login' ? 'current-password' : 'new-password', maxlength: '100', placeholder: t('acct.pass'), 'aria-label': t('acct.pass'), dir: 'ltr' });
+  const pass = h('input', { class: 'input', type: 'password', autocomplete: mode === 'login' ? 'current-password' : 'new-password', maxlength: '72', placeholder: t('acct.pass'), 'aria-label': t('acct.pass'), dir: 'ltr' });
   const err = h('p', { class: 'err-t sm hidden', role: 'alert' });
+  const info = h('p', { class: 'ok-t sm hidden', role: 'status' });
   const eye = h('button', { class: 'icon-btn sm', type: 'button', 'aria-label': t('acct.showpass'), onclick: () => { pass.type = pass.type === 'password' ? 'text' : 'password'; } }, icon('eye', 18));
+  const showErr = m => { info.classList.add('hidden'); err.textContent = m; err.classList.remove('hidden'); };
+  const showInfo = m => { err.classList.add('hidden'); info.textContent = m; info.classList.remove('hidden'); };
+  const finish = async session => {
+    await Store.setAuth(session);
+    if (!Store.state.profile.name) Store.state.profile.name = session.user.name;
+    Store.state.profile.email = session.user.email;
+    try { await Cloud.sync(); } catch (e) { /* ستُعاد المحاولة تلقائيًا */ }
+    syncAccountUi(); toast(t('acct.welcome', { name: session.user.name || '' }), 'ok');
+    ctl.close();
+    if ($('#view') && (location.hash.startsWith('#/home') || location.hash === '' || location.hash.startsWith('#/library') || location.hash.startsWith('#/progress'))) route();
+  };
   const submit = async m => {
-    if (busy) return; err.classList.add('hidden');
+    if (busy) return; err.classList.add('hidden'); info.classList.add('hidden');
     const em = sanitizeText(email.value, 120).trim().toLowerCase(), pw = pass.value, nm = sanitizeText(name.value, 60).trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) { err.textContent = t('acct.e.email'); err.classList.remove('hidden'); return; }
-    if (pw.length < 8) { err.textContent = t('acct.e.pass'); err.classList.remove('hidden'); return; }
-    if (m === 'register' && !nm) { err.textContent = t('acct.e.name'); err.classList.remove('hidden'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) return showErr(t('acct.e.email'));
+    if (pw.length < 8) return showErr(t('acct.e.pass'));
+    if (m === 'register' && !nm) return showErr(t('acct.e.name'));
     busy = true; btn.disabled = true;
     try {
-      const r = await API.req(m === 'login' ? '/api/auth/login' : '/api/auth/register', { body: m === 'login' ? { email: em, password: pw } : { name: nm, email: em, password: pw }, timeout: 30000 });
-      if (!r.token) throw new ApiError('server');
-      await Store.setAuth({ token: String(r.token), user: { name: sanitizeText(r.user && r.user.name || nm, 60), email: sanitizeText(r.user && r.user.email || em, 120) } });
-      if (!Store.state.profile.name) Store.state.profile.name = Store.auth.user.name;
-      try { await Cloud.sync(); } catch (e) { /* ستُعاد المحاولة تلقائيًا */ }
-      syncAccountUi(); toast(t('acct.welcome', { name: Store.auth.user.name || '' }), 'ok');
-      ctl.close();
-      if ($('#view') && (location.hash.startsWith('#/home') || location.hash === '' || location.hash.startsWith('#/library') || location.hash.startsWith('#/progress'))) route();
-    } catch (e) {
-      err.textContent = e.code === 'unauthorized' ? t('acct.e.bad') : (e.code === 'server' && e.message && e.message !== 'server' ? e.message : errMsg(e)); err.classList.remove('hidden');
-    }
+      if (m === 'login') { const s0 = await Auth.signIn(em, pw); if (!s0) throw new ApiError('server'); await finish(s0); }
+      else {
+        const r = await Auth.signUp(em, pw, nm);
+        if (r.session) await finish(r.session); else showInfo(t('acct.confirm'));
+      }
+    } catch (e) { showErr(errMsg(e)); }
     busy = false; btn.disabled = false;
   };
+  const forgot = async () => {
+    const em = sanitizeText(email.value, 120).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) return showErr(t('acct.e.email'));
+    try { await Auth.reset(em); showInfo(t('acct.reset.sent')); } catch (e) { showErr(errMsg(e)); }
+  };
   const btn = h('button', { class: 'btn primary', type: 'submit' }, mode === 'login' ? t('acct.login') : t('acct.register'));
+  const gBtn = h('button', { class: 'btn g-btn', type: 'button', onclick: () => Auth.google() }, h('img', { src: 'google.png', alt: '', width: 18, height: 18 }), t('acct.google'));
   const body = h('form', { class: 'stack', novalidate: true, onsubmit: e => { e.preventDefault(); submit(mode); } },
     h('p', { class: 'muted sm' }, t('acct.cloud.note')),
-    mode === 'register' ? name : null, email, h('div', { class: 'pass-row' }, pass, eye), err,
-    h('div', { class: 'row between wrap gap' }, btn, h('button', { class: 'link-btn', type: 'button', onclick: () => { ctl.close(); setTimeout(() => authModal(mode === 'login' ? 'register' : 'login'), 240); } }, mode === 'login' ? t('acct.switch.reg') : t('acct.switch.log'))));
+    gBtn, h('div', { class: 'or-sep' }, h('span', null, t('acct.or'))),
+    mode === 'register' ? name : null, email, h('div', { class: 'pass-row' }, pass, eye), err, info,
+    h('div', { class: 'row between wrap gap' }, btn, h('button', { class: 'link-btn', type: 'button', onclick: () => { ctl.close(); setTimeout(() => authModal(mode === 'login' ? 'register' : 'login'), 240); } }, mode === 'login' ? t('acct.switch.reg') : t('acct.switch.log'))),
+    mode === 'login' ? h('button', { class: 'link-btn sm', type: 'button', onclick: forgot }, t('acct.forgot')) : null);
   const ctl = openModal({ title: mode === 'login' ? t('acct.login') : t('acct.register'), body });
 }
 
@@ -339,21 +350,8 @@ function isStandalone() { return (window.matchMedia && matchMedia('(display-mode
 
 function viewSettings(root, focus) {
   const rerender = () => viewSettings(root);
-  const urlIn = h('input', { class: 'input', type: 'url', inputmode: 'url', dir: 'ltr', placeholder: 'https://api.example.com', value: Prefs.get('backendUrl') || '', 'aria-label': t('set.server.url'), autocomplete: 'off', spellcheck: 'false' });
-  const status = h('p', { class: 'sm muted', role: 'status' }, API.enabled() ? t('set.server.saved') : t('set.server.none'));
-  const saveUrl = () => {
-    const v = urlIn.value.trim().replace(/\/+$/, '');
-    if (v && !API.validate(v)) { status.textContent = t('set.server.bad'); status.className = 'sm err-t'; return false; }
-    Prefs.set('backendUrl', v); status.textContent = v ? t('set.server.saved') : t('set.server.none'); status.className = 'sm muted'; syncCloudDot(); return true;
-  };
-  const test = async () => {
-    if (!saveUrl()) return; if (!API.enabled()) return;
-    status.textContent = t('set.server.testing'); status.className = 'sm muted';
-    try { const r = await API.req('/api/health', { timeout: 12000 }); status.textContent = t('set.server.ok') + (r && r.name ? ' — ' + sanitizeText(r.name, 40) : ''); status.className = 'sm ok-t'; }
-    catch (e) { status.textContent = t('set.server.fail') + ' (' + errMsg(e) + ')'; status.className = 'sm err-t'; }
-  };
-  const shareIn = h('input', { class: 'input', type: 'url', dir: 'ltr', placeholder: 'https://username.github.io/studymind/', value: Prefs.get('shareUrl') || '', 'aria-label': t('set.share.url') });
-  shareIn.addEventListener('change', () => { const v = shareIn.value.trim(); if (!v || /^https?:\/\//i.test(v)) { Prefs.set('shareUrl', v); toast(t('u.saved'), 'ok'); } else toast(t('set.server.bad'), 'warn'); });
+  const stageSel = h('select', { class: 'input sel', 'aria-label': t('set.stage') }, ['gen', 'p1_3', 'p4_6', 'prep', 'sec', 'uni'].map(v => h('option', { value: v, selected: Prefs.get('stage') === v }, t('stage.' + v))));
+  stageSel.addEventListener('change', () => { Prefs.set('stage', stageSel.value); toast(t('u.saved'), 'ok'); });
   const rate = h('input', { type: 'range', min: '0.6', max: '1.6', step: '0.1', value: String(Prefs.get('speechRate')), 'aria-label': t('set.speech.rate'), class: 'range' });
   rate.addEventListener('input', () => Prefs.set('speechRate', Number(rate.value)));
   const fs = h('input', { type: 'range', min: '0.9', max: '1.3', step: '0.05', value: String(Prefs.get('fontScale')), 'aria-label': t('set.font'), class: 'range' });
@@ -398,18 +396,16 @@ function viewSettings(root, focus) {
       setRow(t('set.motion'), t('set.motion.sub'), switchCtl(!!Prefs.get('reduceMotion'), v => { Prefs.set('reduceMotion', v); applyPrefs(); }, t('set.motion'))),
       setRow(t('set.intro'), t('set.intro.sub'), switchCtl(!!Prefs.get('intro'), v => Prefs.set('intro', v), t('set.intro')))),
     sec('study', t('set.study'), 'book',
+      setRow(t('set.stage'), t('set.stage.sub'), stageSel),
       setRow(t('study.level'), null, seg([{ value: 'simple', label: t('lvl.simple') }, { value: 'standard', label: t('lvl.standard') }, { value: 'deep', label: t('lvl.deep') }], Prefs.get('level'), v => Prefs.set('level', v), t('study.level'))),
       setRow(t('sum.len'), null, seg([{ value: 'quick', label: t('sum.quick') }, { value: 'standard', label: t('sum.standard') }, { value: 'detailed', label: t('sum.detailed') }, { value: 'exam', label: t('sum.exam') }], Prefs.get('summaryLen'), v => Prefs.set('summaryLen', v), t('sum.len'))),
       setRow(t('set.speech.rate'), null, h('div', { class: 'row gap' }, rate, h('button', { class: 'btn sm', type: 'button', onclick: () => Speech.speak(t('set.speech.test'), null) }, icon('volume', 16))))),
-    sec('server', t('set.server'), 'cloud',
-      h('p', { class: 'muted sm' }, t('set.server.note')), h('label', { class: 'lbl' }, t('set.server.url')), urlIn,
-      h('div', { class: 'row wrap gap' }, h('button', { class: 'btn primary', type: 'button', onclick: saveUrl }, t('u.save')), h('button', { class: 'btn', type: 'button', onclick: test }, icon('refresh', 16), t('set.server.test'))),
-      status,
+    sec('server', t('set.account'), 'cloud',
       setRow(t('set.storage'), Store.auth ? t('cloud.where.cloud') : t('cloud.where.local'), h('span', { class: 'badge ' + (Store.auth ? 'ok' : 'warn') }, Store.auth ? t('set.storage.cloud') : t('set.storage.local'))),
       setRow(t('acct.title'), Store.auth && Store.auth.user ? Store.auth.user.email : t('acct.guest.sub'), h('button', { class: 'btn', type: 'button', onclick: openAccount }, icon('user', 16), Store.auth ? t('acct.manage') : t('acct.login')))),
     sec('share', t('set.share'), 'share',
       h('div', { class: 'row gap wrap' }, h('img', { class: 'qr sm-qr', src: 'share-qr.png', alt: t('share.qr'), width: 120, height: 120 }), h('div', { class: 'grow stack' }, h('p', { class: 'muted sm' }, t('share.sub')), h('button', { class: 'btn primary', type: 'button', onclick: openShare }, icon('share', 16), t('u.share')))),
-      h('label', { class: 'lbl' }, t('set.share.url')), shareIn, h('p', { class: 'muted sm' }, t('set.share.note'))),
+      h('p', { class: 'muted sm', dir: 'ltr' }, CONFIG.SHARE_URL)),
     sec('app', t('set.app'), 'download',
       setRow(t('set.install'), isStandalone() ? t('set.install.done') : t('set.install.sub'), h('button', { class: 'btn', type: 'button', onclick: install }, icon('download', 16), t('set.install.go'))),
       setRow(t('set.offline'), navigator.serviceWorker ? t('set.offline.on') : t('set.offline.off'), h('span', { class: 'badge ' + (navigator.serviceWorker ? 'ok' : 'warn') }, navigator.serviceWorker ? 'ON' : 'OFF'))),
@@ -451,15 +447,19 @@ function registerSW() {
   applyPrefs();
   initIntro();
   try { await Store.init(); } catch (e) { Store.state = defaultState(); }
+  let authNote = null;
+  try { authNote = await Auth.takeFromHash(); if (authNote && authNote.session) { await Store.setAuth(authNote.session); if (!Store.state.profile.name) Store.state.profile.name = authNote.session.user.name; Store.touch({ silent: true }); } } catch (e) { /* */ }
   Store.onChange(() => { syncAccountUi(); });
   buildLayout();
   if (!location.hash) history.replaceState(null, '', '#/home');
   route();
   window.addEventListener('hashchange', route);
   registerSW();
+  if (authNote && authNote.session) toast(t('acct.welcome', { name: authNote.session.user.name || '' }), 'ok');
+  else if (authNote && authNote.error) toast(authNote.error, 'err');
   Cloud.onStatus = syncCloudDot;
   Cloud.onMerged = () => { if (/^#\/(home|library|progress|review)?$/.test(location.hash) || location.hash === '') route(); };
-  const doSync = () => { if (Store.auth && API.enabled() && navigator.onLine) Cloud.sync().catch(e => { if (e && e.code === 'unauthorized') { Store.setAuth(null).then(() => { syncAccountUi(); toast(t('err.unauthorized'), 'warn'); }); } }); };
+  const doSync = () => { if (Store.auth && navigator.onLine) Cloud.sync().catch(e => { if (e && e.code === 'unauthorized') { Store.setAuth(null).then(() => { syncAccountUi(); toast(t('err.unauthorized'), 'warn'); }); } }); };
   doSync();
   setInterval(() => { if (!document.hidden) doSync(); }, 60000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) doSync(); else if (Cloud.isDirty()) doSync(); });

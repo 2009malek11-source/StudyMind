@@ -285,3 +285,11 @@ textarea.input { resize: vertical; min-height: 56px; }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 .reduce-motion * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 @media print { .side, .liquid-nav, .top, .intro { display: none !important; } }
+
+/* v1.1 — Google button, separator, tall chat */
+.g-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:#fff;color:#1f2937;border:1px solid #d6dbe6;font-weight:600}
+[data-theme="dark"] .g-btn{background:#fff;color:#1f2937}
+.or-sep{display:flex;align-items:center;gap:10px;color:var(--muted,#6b7a99);font-size:.85rem}
+.or-sep::before,.or-sep::after{content:"";flex:1;height:1px;background:currentColor;opacity:.25}
+.chat-log.tall{min-height:42vh;max-height:58vh}
+select.input.sel{min-width:150px}

@@ -146,3 +146,42 @@ function t(key, params) {
   if (params) s = s.replace(/\{(\w+)\}/g, (m, k) => (k in params ? params[k] : m));
   return s;
 }
+
+/* تحديثات النسخة 1.1: السحابة مخفية، تسجيل Google، المعلّم الذكي، المرحلة الدراسية */
+Object.assign(I18N.ar, {
+  'err.bad_login': 'البريد أو كلمة المرور غير صحيحين.', 'err.not_confirmed': 'فعّل بريدك أولًا عبر الرابط الذي أرسلناه إليك.', 'err.exists': 'هذا البريد مسجّل بالفعل، سجّل الدخول.',
+  'err.weak': 'كلمة المرور ضعيفة، اختر كلمة أقوى.', 'err.bad_email': 'البريد الإلكتروني غير صالح.', 'err.ai_off': 'المساعد الذكي قيد التفعيل الآن، حاول بعد قليل.',
+  'err.daily': 'وصلت إلى الحد اليومي للاستخدام. عُد غدًا بإذن الله.', 'err.unauthorized': 'انتهت الجلسة، سجّل الدخول من جديد.', 'err.login': 'سجّل الدخول أولًا لاستخدام المساعد الذكي.',
+  'study.nobackend': 'تحليل الصور بالذكاء الاصطناعي يحتاج تسجيل الدخول (مجاني). أو الصق النص مباشرة.', 'study.nobackend.link': 'سجّل الدخول',
+  'study.nb.title': 'سجّل الدخول للمتابعة', 'study.nb.body': 'قراءة الصور وشرحها بالذكاء الاصطناعي متاحة لأصحاب الحسابات. سجّل بـ Google أو بريدك في ثوانٍ، أو جرّب لصق النص أو الدرس التجريبي.', 'study.nb.setup': 'تسجيل الدخول',
+  'chat.nobackend': 'سجّل الدخول لتتحدث مع المعلّم الذكي الحقيقي.', 'chat.local.none': 'لم أجد جوابًا في نص الدرس. سجّل الدخول لإجابات أعمق.',
+  'acct.google': 'المتابعة باستخدام Google', 'acct.or': 'أو بالبريد الإلكتروني', 'acct.forgot': 'نسيت كلمة المرور؟', 'acct.reset.sent': 'أرسلنا رابط إعادة تعيين كلمة المرور إلى بريدك.',
+  'acct.confirm': 'أرسلنا رسالة تفعيل إلى بريدك. افتح الرابط ثم سجّل الدخول.',
+  'home.guest.go': 'تسجيل الدخول',
+  'set.account': 'الحساب والسحابة', 'set.stage': 'مرحلتي الدراسية', 'set.stage.sub': 'يضبط مستوى الشرح والأمثلة (المنهج الليبي)',
+  'stage.gen': 'عام / غير محدد', 'stage.p1_3': 'ابتدائي (1–3)', 'stage.p4_6': 'ابتدائي (4–6)', 'stage.prep': 'إعدادي (7–9)', 'stage.sec': 'ثانوي (10–12)', 'stage.uni': 'جامعي',
+  'tutor.title': 'المعلّم الذكي', 'tutor.sub': 'اسأل عن أي مادة أو موضوع — بتركيز على المنهج الليبي من الابتدائي إلى الجامعة.', 'tutor.empty': 'اكتب سؤالك أو اختر اقتراحًا.',
+  'tutor.s1': 'ما الفرق بين الكائنات الحية والنباتات وكيف تتكاثر؟', 'tutor.s2': 'اشرح لي الكسور بطريقة بسيطة', 'tutor.s3': 'اختبرني في مادة العلوم', 'tutor.s4': 'لخّص لي درس الفوتوسنتيز في نقاط',
+  'nav.tutor': 'المعلّم'
+});
+Object.assign(I18N.en, {
+  'err.bad_login': 'Wrong email or password.', 'err.not_confirmed': 'Please confirm your email first using the link we sent you.', 'err.exists': 'This email is already registered, please sign in.',
+  'err.weak': 'Password is too weak, choose a stronger one.', 'err.bad_email': 'Invalid email address.', 'err.ai_off': 'The AI tutor is being activated, please try again shortly.',
+  'err.daily': 'You reached today’s usage limit. Come back tomorrow.', 'err.unauthorized': 'Session expired, please sign in again.', 'err.login': 'Sign in first to use the AI tutor.',
+  'study.nobackend': 'AI photo analysis needs you to sign in (free). Or paste the text directly.', 'study.nobackend.link': 'Sign in',
+  'study.nb.title': 'Sign in to continue', 'study.nb.body': 'Reading and explaining photos with AI is available to signed-in users. Sign in with Google or email in seconds, or try Paste text or the demo lesson.', 'study.nb.setup': 'Sign in',
+  'chat.nobackend': 'Sign in to chat with the real AI tutor.', 'chat.local.none': 'I could not find an answer in the lesson text. Sign in for deeper answers.',
+  'acct.google': 'Continue with Google', 'acct.or': 'or with email', 'acct.forgot': 'Forgot password?', 'acct.reset.sent': 'We sent a password reset link to your email.',
+  'acct.confirm': 'We sent an activation email. Open the link, then sign in.',
+  'home.guest.go': 'Sign in',
+  'set.account': 'Account & cloud', 'set.stage': 'My study stage', 'set.stage.sub': 'Tunes explanation level and examples (Libyan curriculum)',
+  'stage.gen': 'General / not set', 'stage.p1_3': 'Primary (1–3)', 'stage.p4_6': 'Primary (4–6)', 'stage.prep': 'Preparatory (7–9)', 'stage.sec': 'Secondary (10–12)', 'stage.uni': 'University',
+  'tutor.title': 'AI Tutor', 'tutor.sub': 'Ask about any subject or topic — with a focus on the Libyan curriculum from primary school to university.', 'tutor.empty': 'Type your question or pick a suggestion.',
+  'tutor.s1': 'What is the difference between animals and plants, and how do they reproduce?', 'tutor.s2': 'Explain fractions simply', 'tutor.s3': 'Quiz me on science', 'tutor.s4': 'Summarize photosynthesis in key points',
+  'nav.tutor': 'Tutor'
+});
+
+Object.assign(I18N.ar, { 'chat.ph.free': 'اسألني عن أي شيء في دراستك…' });
+Object.assign(I18N.en, { 'chat.ph.free': 'Ask me anything about your studies…' });
+Object.assign(I18N.ar, { 'u.listen': 'استمع' });
+Object.assign(I18N.en, { 'u.listen': 'Listen' });

@@ -1,3 +1,16 @@
+# StudyMind v1.1 — الإعداد النهائي (Supabase)
+
+التطبيق مربوط داخليًا بمشروع Supabase المخصص `chyltyhlhpgxndflznvv` (مستقل عن بقية مشاريعك) والرابط ثابت:
+https://2009malek11-source.github.io/StudyMind/ — المستخدم لا يرى أي رابط خادم؛ يسجّل بـ Google أو البريد فقط.
+
+## خطوات لوحة Supabase (مرة واحدة)
+1. **Authentication → URL Configuration**: Site URL = `https://2009malek11-source.github.io/StudyMind/` وأضفه في Redirect URLs.
+2. **Authentication → Providers → Google**: فعّله وضع Client ID/Secret من Google Cloud (Callback: `https://chyltyhlhpgxndflznvv.supabase.co/auth/v1/callback`).
+3. **Edge Functions → Secrets**: أضف `GEMINI_API_KEY` (من aistudio.google.com). اختياري: `DAILY_LIMIT`, `GEMINI_MODEL`.
+4. (اختياري) Authentication → SMTP لإرسال رسائل التفعيل بحدّ أعلى.
+
+---
+
 # StudyMind — تعلّم · افهم · انمُ
 
 تطبيق PWA لتحويل صور صفحات الكتب إلى شرح وملخص وبطاقات حفظ واختبارات ومساعد ذكي.

@@ -268,7 +268,7 @@ function viewStudy(root) {
 
   const aBtn = analyzeButton(ready, () => startAnalysis(root));
   const panel = running ? progressPanel() : null;
-  const hint = (!API.enabled() && d.mode === 'images') ? h('div', { class: 'notice' }, icon('info', 18), h('div', null, t('study.nobackend'), ' ', h('a', { href: '#/settings/server' }, t('study.nobackend.link')))) : null;
+  const hint = (!API.signedIn() && d.mode === 'images') ? h('div', { class: 'notice' }, icon('info', 18), h('div', null, t('study.nobackend'), ' ', h('button', { class: 'link-btn', type: 'button', onclick: () => openAccount() }, t('study.nobackend.link')))) : null;
 
   mount(root,
     h('section', { class: 'page' },
@@ -346,13 +346,13 @@ async function startAnalysis(root) {
   const d = Study.draft;
   const opts = { level: Prefs.get('level'), summaryLen: Prefs.get('summaryLen'), lang: Prefs.get('lang') };
   const text = d.mode === 'text';
-  if (!text && !API.enabled()) {
+  if (!text && !API.signedIn()) {
     openModal({
       title: t('study.nb.title'), body: h('div', { class: 'stack' }, h('p', null, t('study.nb.body'))),
       actions: [
         { label: t('study.nb.text'), kind: '', onClick: () => { d.mode = 'text'; viewStudy(root); } },
         { label: t('study.demo'), kind: '', onClick: () => { const l = createDemoLesson(); go('#/lesson/' + l.id); } },
-        { label: t('study.nb.setup'), kind: 'primary', onClick: () => go('#/settings/server') }
+        { label: t('study.nb.setup'), kind: 'primary', onClick: () => openAccount() }
       ]
     });
     return;
@@ -397,7 +397,7 @@ async function startAnalysis(root) {
     if (!pages.join('').trim()) throw new ApiError('empty');
     run.indeterminate = true; run.eta = null; run.pct = Math.max(run.pct, 86); setStage('study');
     let pack;
-    if (API.enabled()) {
+    if (API.signedIn()) {
       const r = await API.req('/api/study', { body: { text: pages.join('\n\n'), pages, lang: opts.lang, level: opts.level, summaryLen: opts.summaryLen }, signal: ctrl.signal, timeout: 120000 });
       setStage('sum');
       pack = normalizePack(r.pack || r);
@@ -408,7 +408,7 @@ async function startAnalysis(root) {
       setStage('q');
     }
     run.pct = 100; run.indeterminate = false; paintProgress();
-    const lesson = addLesson({ title: pack.title || title, pages, pack, source: API.enabled() ? 'ai' : 'local', level: opts.level, pageCount: n });
+    const lesson = addLesson({ title: pack.title || title, pages, pack, source: API.signedIn() ? 'ai' : 'local', level: opts.level, pageCount: n });
     Study.draft = { mode: 'images', items: [], text: '', busy: 0 };
     Study.run = null;
     toast(t('study.done'), 'ok');
@@ -655,7 +655,7 @@ function tabTutor(body, lesson, p) {
     busy = true; inp.value = ''; hist.push({ role: 'user', content: text }); paint();
     const wait = h('div', { class: 'msg assistant typing' }, h('span'), h('span'), h('span')); log.appendChild(wait); log.scrollTop = log.scrollHeight;
     let reply = null;
-    if (API.enabled()) {
+    if (API.signedIn()) {
       try {
         const ctx = { title: lesson.title, summary: p.summary.standard, keyFacts: p.keyFacts, text: lesson.pages.join('\n\n').slice(0, 14000) };
         const r = await API.req('/api/chat', { body: { messages: hist.slice(-12), context: ctx, lang: Prefs.get('lang') }, timeout: 60000 });
@@ -672,7 +672,7 @@ function tabTutor(body, lesson, p) {
   const mic = h('button', { class: 'icon-btn', type: 'button', 'aria-label': t('chat.mic'), onclick: () => { if (rec) { try { rec.stop(); } catch (e) { /* */ } return; } mic.classList.add('on'); rec = Speech.listen(tx => send(tx), () => { mic.classList.remove('on'); rec = null; }); if (!rec) mic.classList.remove('on'); } }, icon('mic', 20));
   inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(inp.value); } });
   mount(body, h('div', { class: 'card chat' },
-    !API.enabled() ? h('div', { class: 'notice sm' }, icon('info', 16), h('div', null, t('chat.nobackend'))) : null,
+    !API.signedIn() ? h('div', { class: 'notice sm' }, icon('info', 16), h('div', null, t('chat.nobackend'))) : null,
     log, h('div', { class: 'chips' }, sugg),
     h('div', { class: 'chat-in' }, mic, inp, h('button', { class: 'icon-btn primary', type: 'button', 'aria-label': t('chat.send'), onclick: () => send(inp.value) }, icon('send', 20))),
     hist.length ? h('button', { class: 'link-btn sm', type: 'button', onclick: () => { hist.length = 0; Store.touch({ silent: true }); paint(); } }, t('chat.clear')) : null));
@@ -699,4 +699,38 @@ function viewReview(root) {
     due.length ? h('button', { class: 'btn primary', type: 'button', onclick: () => runCards(area, shuffle(due).slice(0, 30), false, () => viewReview(root)) }, icon('play', 16), t('rev.start')) : h('a', { class: 'btn primary', href: '#/study' }, t('home.upload'))));
   mount(root, h('section', { class: 'page' }, pageHead(t('rev.title'), t('rev.head')), area));
   home();
+}
+
+/* ───────────── المعلّم الذكي العام (بدون درس محدّد) ───────────── */
+function viewTutor(root) {
+  const hist = Store.state.chats._free || (Store.state.chats._free = []);
+  const log = h('div', { class: 'chat-log tall', 'aria-live': 'polite' });
+  const inp = h('textarea', { class: 'input', rows: '1', maxlength: '1000', placeholder: t('chat.ph.free'), 'aria-label': t('chat.ph.free') });
+  let busy = false, rec = null;
+  const bubble = m => h('div', { class: 'msg ' + m.role }, m.role === 'assistant' ? renderMd(m.content) : h('p', null, m.content),
+    m.role === 'assistant' ? h('button', { class: 'link-btn sm', type: 'button', onclick: () => Speech.speak(m.content, null) }, icon('volume', 14), t('u.listen')) : null);
+  const paint = () => { mount(log, hist.length ? hist.map(bubble) : h('div', { class: 'muted center' }, t('tutor.empty'))); log.scrollTop = log.scrollHeight; };
+  const send = async text => {
+    text = sanitizeText(text, 1000).trim(); if (!text || busy) return;
+    if (!API.signedIn()) { openAccount(); return; }
+    busy = true; inp.value = ''; hist.push({ role: 'user', content: text }); paint();
+    const wait = h('div', { class: 'msg assistant typing' }, h('span'), h('span'), h('span')); log.appendChild(wait); log.scrollTop = log.scrollHeight;
+    let reply;
+    try { const r = await API.req('/api/chat', { body: { messages: hist.slice(-16), lang: Prefs.get('lang') }, timeout: 60000 }); reply = sanitizeText(r.reply || '', 8000); }
+    catch (e) { reply = '⚠️ ' + errMsg(e); hist.pop(); }
+    wait.remove();
+    if (reply.startsWith('⚠️')) { toast(reply, 'err'); inp.value = text; } else hist.push({ role: 'assistant', content: reply });
+    if (hist.length > 80) hist.splice(0, hist.length - 80);
+    Store.touch({ silent: true }); busy = false; paint();
+  };
+  const sugg = ['tutor.s1', 'tutor.s2', 'tutor.s3', 'tutor.s4'].map(k => h('button', { class: 'chip', type: 'button', onclick: () => send(t(k)) }, t(k)));
+  const mic = h('button', { class: 'icon-btn', type: 'button', 'aria-label': t('chat.mic'), onclick: () => { if (rec) { try { rec.stop(); } catch (e) { /* */ } return; } mic.classList.add('on'); rec = Speech.listen(tx => send(tx), () => { mic.classList.remove('on'); rec = null; }); if (!rec) mic.classList.remove('on'); } }, icon('mic', 20));
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(inp.value); } });
+  mount(root, h('section', { class: 'page' }, pageHead(t('tutor.title'), t('tutor.sub')),
+    h('div', { class: 'card chat' },
+      !API.signedIn() ? h('div', { class: 'notice sm' }, icon('info', 16), h('div', null, t('chat.nobackend')), h('button', { class: 'btn sm primary', type: 'button', onclick: () => openAccount() }, t('acct.login'))) : null,
+      log, h('div', { class: 'chips' }, sugg),
+      h('div', { class: 'chat-in' }, mic, inp, h('button', { class: 'icon-btn primary', type: 'button', 'aria-label': t('chat.send'), onclick: () => send(inp.value) }, icon('send', 20))),
+      hist.length ? h('button', { class: 'link-btn sm', type: 'button', onclick: () => { hist.length = 0; Store.touch({ silent: true }); paint(); } }, t('chat.clear')) : null)));
+  paint();
 }

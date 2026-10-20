@@ -1,11 +1,11 @@
 /* StudyMind — Service Worker (عمل دون اتصال) */
 'use strict';
-const VERSION = 'studymind-v1.0.0';
+const VERSION = 'studymind-v1.1.0';
 const SHELL = [
   './', 'index.html', 'style.css', 'core.js', 'i18n.js', 'study.js', 'app.js', 'manifest.json',
   'logo.png', 'logo-dark.png', 'logo-mark.png', 'logo-mark-dark.png', 'body.png', 'cap.png', 'cap-dark.png',
   'wordmark.png', 'wordmark-dark.png', 'tagline.png', 'tagline-dark.png', 'favicon.png', 'apple-touch-icon.png',
-  'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'og-image.png', 'share-qr.png'
+  'icon-192.png', 'google.png', 'icon-512.png', 'icon-maskable-512.png', 'og-image.png', 'share-qr.png'
 ];
 
 self.addEventListener('install', e => {

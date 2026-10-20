@@ -6,12 +6,13 @@
 
 /* ───────────── إعدادات قابلة للتعديل ───────────── */
 const CONFIG = {
-  // ضع رابط الخادم هنا (أو من الإعدادات داخل التطبيق). مثال: 'https://api.example.com'
-  BACKEND_URL: '',
-  // رابط التطبيق للمشاركة (اتركه فارغًا ليُستخدم رابط الصفحة الحالية)
-  SHARE_URL: '',
+  // الخادم السحابي مربوط داخليًا ولا يراه المستخدم (المفتاح هنا عام ومحمي بسياسات RLS)
+  SUPABASE_URL: 'https://chyltyhlhpgxndflznvv.supabase.co',
+  SUPABASE_KEY: 'sb_publishable_EADrkA4AZkQP7QrFq2WMUQ_SARUOo1c',
+  // رابط التطبيق المثبّت للمشاركة والـ QR
+  SHARE_URL: 'https://2009malek11-source.github.io/StudyMind/',
   APP_NAME: 'StudyMind',
-  VERSION: '1.0.0',
+  VERSION: '1.1.0',
   MAX_IMAGE_SIDE: 1600,
   JPEG_QUALITY: 0.82,
   MAX_PAGES: 60,
@@ -172,13 +173,13 @@ function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { co
 
 /* ───────────── تفضيلات (localStorage) ───────────── */
 const Prefs = {
-  defaults: { theme: 'system', lang: 'ar', fontScale: 1, speechRate: 1, backendUrl: '', intro: true, level: 'standard', summaryLen: 'standard', reduceMotion: false },
+  defaults: { theme: 'system', lang: 'ar', fontScale: 1, speechRate: 1, stage: 'gen', intro: true, level: 'standard', summaryLen: 'standard', reduceMotion: false },
   data: null,
   load() {
     let d = {};
     try { d = JSON.parse(localStorage.getItem('sm_prefs') || '{}') || {}; } catch (e) { d = {}; }
     this.data = Object.assign({}, this.defaults, d);
-    if (!this.data.backendUrl && CONFIG.BACKEND_URL) this.data.backendUrl = CONFIG.BACKEND_URL;
+    delete this.data.backendUrl; delete this.data.shareUrl;
     return this;
   },
   get(k) { if (!this.data) this.load(); return this.data[k]; },
@@ -256,7 +257,7 @@ const Store = {
     this.state.updatedAt = Date.now();
     this._persist();
     if (!opts || !opts.silent) this._subs.forEach(f => { try { f(); } catch (e) { /* تجاهل */ } });
-    if (this.auth && Prefs.get('backendUrl') && !(opts && opts.nosync)) { try { localStorage.setItem('sm_dirty', '1'); } catch (e) { /* */ } this._syncSoon(); }
+    if (this.auth && !(opts && opts.nosync)) { try { localStorage.setItem('sm_dirty', '1'); } catch (e) { /* */ } this._syncSoon(); }
   },
   _persist: debounce(function () { Vault.save('state', Store.state).catch(() => { }); }, 350),
   _syncSoon: debounce(function () { Cloud.sync().catch(() => { }); }, 1200),
@@ -271,37 +272,22 @@ const Store = {
   lesson(id) { return this.state.lessons.find(l => l.id === id); }
 };
 
-/* ───────────── الاتصال بالخادم ───────────── */
+/* ───────────── الاتصال بالسحابة (Supabase) — مخفي تمامًا عن المستخدم ───────────── */
 class ApiError extends Error { constructor(code, msg) { super(msg || code); this.code = code; } }
-const API = {
-  base() { return String(Prefs.get('backendUrl') || '').trim().replace(/\/+$/, ''); },
-  enabled() { return !!this.base(); },
-  validate(u) {
-    try {
-      const x = new URL(u);
-      if (x.protocol === 'https:') return true;
-      if (x.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(x.hostname)) return true;
-    } catch (e) { /* غير صالح */ }
-    return false;
-  },
-  async req(path, opt) {
+const SB = {
+  url() { return CONFIG.SUPABASE_URL.replace(/\/+$/, ''); },
+  async http(path, opt) {
     opt = opt || {};
-    if (!this.enabled()) throw new ApiError('no_backend');
-    if (!this.validate(this.base())) throw new ApiError('bad_url');
     if (!navigator.onLine) throw new ApiError('offline');
     const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), opt.timeout || 90000);
+    const to = setTimeout(() => ctrl.abort(), opt.timeout || 30000);
     if (opt.signal) opt.signal.addEventListener('abort', () => ctrl.abort(), { once: true });
-    const headers = { 'Accept': 'application/json' };
-    if (opt.body) headers['Content-Type'] = 'application/json';
-    if (Store.auth && Store.auth.token) headers['Authorization'] = 'Bearer ' + Store.auth.token;
+    const headers = Object.assign({ 'Accept': 'application/json', 'apikey': CONFIG.SUPABASE_KEY }, opt.headers || {});
+    if (opt.body !== undefined) headers['Content-Type'] = 'application/json';
+    if (opt.token) headers['Authorization'] = 'Bearer ' + opt.token;
     let res;
     try {
-      res = await fetch(this.base() + path, {
-        method: opt.method || (opt.body ? 'POST' : 'GET'), headers,
-        body: opt.body ? JSON.stringify(opt.body) : undefined,
-        signal: ctrl.signal, credentials: 'omit', mode: 'cors', cache: 'no-store', referrerPolicy: 'no-referrer'
-      });
+      res = await fetch(this.url() + path, { method: opt.method || (opt.body !== undefined ? 'POST' : 'GET'), headers, body: opt.body !== undefined ? JSON.stringify(opt.body) : undefined, signal: ctrl.signal, credentials: 'omit', mode: 'cors', cache: 'no-store', referrerPolicy: 'no-referrer' });
     } catch (e) {
       clearTimeout(to);
       if (opt.signal && opt.signal.aborted) throw new ApiError('aborted');
@@ -309,18 +295,97 @@ const API = {
     }
     clearTimeout(to);
     let data = null;
-    try { data = await res.json(); } catch (e) { data = null; }
+    try { const tx = await res.text(); data = tx ? JSON.parse(tx) : null; } catch (e) { data = null; }
     if (!res.ok) {
-      const code = res.status === 401 ? 'unauthorized' : res.status === 429 ? 'rate' : res.status === 413 ? 'too_large' : 'server';
-      throw new ApiError(code, data && data.error ? sanitizeText(data.error, 200) : code);
+      const raw = data && (data.error_code || data.error || data.msg || data.code || data.message) || '';
+      const m = String(raw).toLowerCase();
+      let code = 'server';
+      if (res.status === 401 || res.status === 403) code = 'unauthorized';
+      else if (res.status === 429) code = 'rate';
+      else if (res.status === 413) code = 'too_large';
+      if (m.includes('invalid_credentials') || m.includes('invalid login')) code = 'bad_login';
+      else if (m.includes('email_not_confirmed')) code = 'not_confirmed';
+      else if (m.includes('user_already_exists') || m.includes('already registered')) code = 'exists';
+      else if (m.includes('weak_password')) code = 'weak';
+      else if (m.includes('over_email_send_rate_limit') || m.includes('over_request_rate_limit')) code = 'rate';
+      else if (m.includes('ai_not_configured')) code = 'ai_off';
+      else if (m.includes('daily_limit')) code = 'daily';
+      else if (m.includes('validation_failed') || m.includes('email_address_invalid')) code = 'bad_email';
+      throw new ApiError(code, sanitizeText(String(raw), 200));
     }
-    return data || {};
+    return data;
+  }
+};
+const Auth = {
+  redirect() { const h0 = location.hostname; return (h0 === 'localhost' || h0 === '127.0.0.1') ? location.origin + location.pathname : CONFIG.SHARE_URL; },
+  _mk(r, fallbackName) {
+    if (!r || !r.access_token) return null;
+    const u = r.user || {}; const md = u.user_metadata || {};
+    return { token: String(r.access_token), refresh: String(r.refresh_token || ''), exp: Date.now() + (Number(r.expires_in) || 3600) * 1000,
+      user: { id: String(u.id || ''), email: sanitizeText(u.email || '', 120), name: sanitizeText(md.name || md.full_name || fallbackName || String(u.email || '').split('@')[0], 60) } };
+  },
+  async signUp(email, password, name) {
+    const r = await SB.http('/auth/v1/signup?redirect_to=' + encodeURIComponent(this.redirect()), { body: { email, password, data: { name } } });
+    if (r && r.access_token) return { session: this._mk(r, name) };
+    if (r && r.user && Array.isArray(r.user.identities) === false && r.id && !(r.identities && r.identities.length === 0)) return { confirm: true };
+    if (r && r.identities && r.identities.length === 0) throw new ApiError('exists');
+    return { confirm: true };
+  },
+  async signIn(email, password) { return this._mk(await SB.http('/auth/v1/token?grant_type=password', { body: { email, password } })); },
+  google() { location.href = SB.url() + '/auth/v1/authorize?provider=google&redirect_to=' + encodeURIComponent(this.redirect()); },
+  reset(email) { return SB.http('/auth/v1/recover?redirect_to=' + encodeURIComponent(this.redirect()), { body: { email } }); },
+  // يلتقط الجلسة العائدة من Google/رابط البريد (التوكن في الـ hash) ثم ينظّف الرابط
+  async takeFromHash() {
+    const hs = location.hash.replace(/^#\/?/, '');
+    if (!/(^|&)(access_token|error)=/.test(hs)) return null;
+    const p = new URLSearchParams(hs);
+    history.replaceState(null, '', location.pathname + location.search + '#/home');
+    if (p.get('error')) return { error: sanitizeText(p.get('error_description') || p.get('error'), 160) };
+    if (p.get('type') === 'recovery') { /* سيُعامَل كتسجيل دخول عادي */ }
+    const at = p.get('access_token'); if (!at) return null;
+    let u = null;
+    try { u = await SB.http('/auth/v1/user', { token: at }); } catch (e) { return { error: 'user' }; }
+    return { session: this._mk({ access_token: at, refresh_token: p.get('refresh_token'), expires_in: p.get('expires_in'), user: u }) };
+  },
+  // توكن صالح دائمًا (يجدّد تلقائيًا)
+  async token() {
+    const a = Store.auth; if (!a || !a.token) throw new ApiError('unauthorized');
+    if (a.exp - Date.now() > 60000) return a.token;
+    if (!a.refresh) throw new ApiError('unauthorized');
+    if (!this._rf) this._rf = (async () => {
+      try {
+        const r = await SB.http('/auth/v1/token?grant_type=refresh_token', { body: { refresh_token: a.refresh } });
+        const s = this._mk(r, a.user.name); if (!s) throw new ApiError('unauthorized');
+        s.user = Object.assign({}, a.user, s.user.id ? s.user : {});
+        await Store.setAuth(s); return s.token;
+      } catch (e) { if (e && (e.code === 'unauthorized' || e.code === 'bad_login' || e.code === 'server')) throw new ApiError('unauthorized'); throw e; }
+      finally { this._rf = null; }
+    })();
+    return this._rf;
+  },
+  async signOut() { const a = Store.auth; if (a && a.token) { try { await SB.http('/auth/v1/logout', { method: 'POST', token: a.token, timeout: 6000 }); } catch (e) { /* لا يهم */ } } }
+};
+const AI_ACTIONS = { '/api/read-page': 'read-page', '/api/study': 'study', '/api/chat': 'chat', '/api/quiz-me': 'quiz-me' };
+const API = {
+  enabled() { return true; },
+  signedIn() { return !!(Store.auth && Store.auth.token); },
+  async req(path, opt) {
+    opt = opt || {};
+    const action = AI_ACTIONS[path]; if (!action) throw new ApiError('server');
+    if (!this.signedIn()) throw new ApiError('unauthorized');
+    const token = await Auth.token();
+    const body = Object.assign({ action, stage: Prefs.get('stage') }, opt.body || {});
+    try { return (await SB.http('/functions/v1/studymind-ai', { body, token, timeout: opt.timeout || 90000, signal: opt.signal })) || {}; }
+    catch (e) {
+      if (e && e.code === 'unauthorized') { try { Store.auth.exp = 0; await Auth.token(); return (await SB.http('/functions/v1/studymind-ai', { body, token: await Auth.token(), timeout: opt.timeout || 90000, signal: opt.signal })) || {}; } catch (e2) { throw e2; } }
+      throw e;
+    }
   }
 };
 function errMsg(e) {
   const c = e && e.code;
   if (c === 'unauthorized' && !Store.auth) return t('err.login');
-  const map = ['no_backend', 'bad_url', 'offline', 'timeout', 'network', 'unauthorized', 'rate', 'too_large', 'server', 'aborted'];
+  const map = ['offline', 'timeout', 'network', 'unauthorized', 'rate', 'too_large', 'server', 'aborted', 'bad_login', 'not_confirmed', 'exists', 'weak', 'ai_off', 'daily', 'bad_email'];
   return t('err.' + (map.includes(c) ? c : 'generic'));
 }
 
@@ -331,15 +396,16 @@ const Cloud = {
   isDirty() { try { return localStorage.getItem('sm_dirty') === '1'; } catch (e) { return false; } },
   // يجلب نسخة الحساب، يدمجها، ثم يرفع النتيجة. آمن للاستخدام من عدة أجهزة.
   sync() {
-    if (!Store.auth || !API.enabled()) return Promise.resolve(false);
+    if (!Store.auth) return Promise.resolve(false);
     if (this.busy) return this.busy;
     this.busy = (async () => {
       this.status = 'syncing'; this._ui();
       try {
-        const r = await API.req('/api/sync', { timeout: 30000 });
+        const token = await Auth.token(); const uid = Store.auth.user.id;
+        const rows = await SB.http('/rest/v1/studymind_state?select=data&user_id=eq.' + encodeURIComponent(uid), { token, timeout: 30000 });
         let changed = false;
-        if (r && r.data && typeof r.data === 'object') changed = this.merge(r.data);
-        await API.req('/api/sync', { method: 'PUT', body: { data: Store.state, updatedAt: Store.state.updatedAt }, timeout: 45000 });
+        if (Array.isArray(rows) && rows[0] && rows[0].data && typeof rows[0].data === 'object') changed = this.merge(rows[0].data);
+        await SB.http('/rest/v1/studymind_state?on_conflict=user_id', { method: 'POST', token, timeout: 45000, headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' }, body: { user_id: uid, data: Store.state, updated_at: new Date().toISOString() } });
         try { localStorage.removeItem('sm_dirty'); } catch (e) { /* */ }
         this.status = 'ok'; this.lastSync = Date.now();
         if (changed && this.onMerged) { try { this.onMerged(); } catch (e) { /* */ } }
